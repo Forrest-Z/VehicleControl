@@ -1,0 +1,10 @@
+My_Trajectory_Point trajectory_point
+VehicleInfo vehicle_info
+float64 goal_x
+float64 goal_y
+float64 preview_x
+float64 preview_y
+float64 distance_error
+float64 velocity_error
+float64 heading_error
+
