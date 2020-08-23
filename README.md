@@ -8,7 +8,8 @@
     * [Choose Controller and Adjust Their Parameters](#choose-controller-and-adjust-their-parameters)
 * [Controllers](#controllers)
     * [Controller list](#controllers)
-    * [Result PLot](#result-plot)
+    * [Result PLot(reverse)](#result-pLot(reverse))
+    * [Result PLot(forward)](#result-pLot(forward))
     * [Other Plot](#other-plot)
 * [Maintainers](#maintainers)
 
