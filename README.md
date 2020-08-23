@@ -8,8 +8,8 @@
     * [Choose Controller and Adjust Their Parameters](#choose-controller-and-adjust-their-parameters)
 * [Controllers](#controllers)
     * [Controller list](#controllers)
-    * [Result PLot(reverse)](#result-pLot(reverse))
-    * [Result PLot(forward)](#result-pLot(forward))
+    * [Result PLot Reverse](#result-pLot-reverse)
+    * [Result PLot Forward](#result-pLot-forward)
     * [Other Plot](#other-plot)
 * [Maintainers](#maintainers)
 
@@ -125,9 +125,9 @@ change the **TARGET_PLOT** to choose which plot you want to see during simulatio
     * [MPC](#mpc)
 * Centralized Controllers
     * MPC (working in process)
-## Result PLot(reverse)
+## Result PLot Reverse
 ![v=10m/s](https://github.com/djh1995555/VehicleControl/blob/master/image_folder/gif/pure_pursuit_reverse_10.gif) 
-## Result PLot(forward)
+## Result PLot Forward
 ### Pure Pursuit Controller  
 * Trajectory Tracking
 ![v=10m/s](https://github.com/djh1995555/VehicleControl/blob/master/image_folder/gif/pure_pursuit_10.gif)
