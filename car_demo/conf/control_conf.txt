@@ -1,7 +1,7 @@
 LONGITUDINAL_CONTROLLER=Double PID Controller
-LATERAL_CONTROLLER=MPC Controller
+LATERAL_CONTROLLER=Pure Pursuit Controller
 CENTRALIZED_CONTROLLER=MPC Controller
-# The optional LONGITUDINAL_CONTROLLER are "Double PID Controller"
+# The optional LONGITUDINAL_CONTROLLER are "Double PID Controller","Feedforward PID Controller"
 # The optional LATERAL_CONTROLLER are "Pure Pursuit Controller","Rear Wheel Feedback Controller","Stanley Controller","LQR Controller","MPC Controller"
 # The optional CENTRALIZED_CONTROLLER are "MPC Controller"
 Ts=0.01
@@ -13,6 +13,15 @@ VELOCITY_KD=0
 ACC_KP=50
 ACC_KI=0
 ACC_KD=0
+# Feedforward PID
+FEEDFORWARD_ENABLE=0
+SLOPE_COMPENSATION_ENABLE=1
+FEEDFORWARD_GAIN=300
+DETECTION_LENGTH=5
+ERROR_THRESHOLD=0.15
+KP=800
+KI=0.3
+KD=0
 # Pure Pursuit
 PURE_PURSUIT_PREVIEW_LENGTH=75
 # Stanley
@@ -42,7 +51,10 @@ MPC_PREDICT_LENGTH=20
 # Trajectory Analyzer parameters
 SEARCH_LENGTH=500
 #  Vehicle state estimation
-SLOPE_THRESHOLD=5
+SLOPE_THRESHOLD=1
+PITCH_DEQUE_LENGTH=5
+FILTER_METHOD=1
+# 1 menas "median method",2 means "slide window mean method"
 # The following vehicle attributes come from the model file (prius.urdf), can not be changed.
 # If you want to change them, you have to modify the model file. About physical attributes, you can modify the parameters of axle and chassis. About the performance attributes, you can modify the parameter in Pulgin named pruis_hybrid_drive.
 #Physical Attributes

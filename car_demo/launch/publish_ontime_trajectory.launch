@@ -1,0 +1,4 @@
+<?xml version="1.0"?>
+<launch>
+  <node pkg="car_demo" type="local_planning" name="local_planning"/>  
+</launch>

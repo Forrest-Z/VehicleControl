@@ -13,6 +13,7 @@ set (PRIUSCUP_VERSION_FULL ${PRIUSCUP_MAJOR_VERSION}.${PRIUSCUP_MINOR_VERSION}.$
 find_package(catkin REQUIRED COMPONENTS
   gazebo_ros
   prius_msgs
+  nox_msgs
 
 )
 
@@ -41,6 +42,7 @@ add_library(ControlModule
     src/Controller/PIDController.cpp
     src/Controller/Controller.cpp
     src/Controller/DoublePID.cpp
+    src/Controller/FeedforwardPID.cpp
     src/Controller/PurePursuit.cpp
     src/Controller/LQRController.cpp
     src/Controller/MPCController.cpp
@@ -55,6 +57,10 @@ add_library(ControlModule
 add_executable(publish_path_once src/publish_path_once.cpp)
 add_dependencies(publish_path_once ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(publish_path_once ${catkin_LIBRARIES})
+
+add_executable(local_planning src/local_planning.cpp)
+add_dependencies(local_planning ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(local_planning ${catkin_LIBRARIES})
 
 add_executable(Main src/Main.cpp)
 add_dependencies(Main ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
@@ -71,7 +77,7 @@ add_dependencies(PriusHybridPlugin ${catkin_EXPORTED_TARGETS})
 
 
 
-catkin_install_python(PROGRAMS scripts/joystick_translator
+catkin_install_python(PROGRAMS scripts/joystick_translator.py
                       DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
 install(TARGETS PriusHybridPlugin

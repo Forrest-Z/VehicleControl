@@ -1,4 +1,4 @@
 <?xml version="1.0"?>
 <launch>
-  <node pkg="car_demo" type="trajectory_plotter.py" name="trajectory_plot"/>
+  <node pkg="car_demo" type="TrajectoryPlotter.py" name="trajectory_plot"/>
 </launch>

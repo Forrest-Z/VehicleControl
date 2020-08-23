@@ -27,5 +27,8 @@ class PIDController
     
     int control_position(double error, double &compensation, double dt);
     int control_increment(double error, double &compensation, double dt);
+    void AdjustKp(int multiplier);
+    void AdjustKi(int multiplier);
+    void AdjustKd(int multiplier);
 
 };

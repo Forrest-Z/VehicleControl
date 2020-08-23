@@ -1,6 +1,6 @@
 #include <car_demo/TrajectoryAnalyzer.h>
 
-Status TrajectoryAnalyzer::Init(ControlConf &control_conf)
+Status TrajectoryAnalyzer::Init(const ControlConf &control_conf)
 {
     Ts=control_conf.conf_param.Ts;
     search_length=control_conf.conf_param.search_length;
@@ -19,7 +19,7 @@ Status TrajectoryAnalyzer::ReadTrajectory(const prius_msgs::My_Trajectory &traje
     status.status = "OK";
     return status;
 }
-double TrajectoryAnalyzer::ComputeDist(prius_msgs::My_Trajectory_Point trajectory_point, double x, double y)
+double TrajectoryAnalyzer::ComputeDist(const prius_msgs::My_Trajectory_Point trajectory_point, double x, double y)
 {
     float distance;
     return distance = sqrt((trajectory_point.x-x)*(trajectory_point.x-x)+(trajectory_point.y-y)*(trajectory_point.y-y));
@@ -66,14 +66,31 @@ double TrajectoryAnalyzer::MatchPointByPositionForStanley(double x,double y)
 }
 void TrajectoryAnalyzer::GetPreviewPoint(double preview_length)
 {
-    preview_id = goal_id + preview_length;
+    if(goal_id + preview_length<trajectory_info.size())
+    {
+        preview_id = goal_id + preview_length;
+    }
+    else
+    {
+        preview_id = trajectory_info.size();
+    }
+    
     preview_state = trajectory_info[preview_id];
 }
 vector<prius_msgs::My_Trajectory_Point> TrajectoryAnalyzer::GetPreviewTrajectory(double preview_length)
 {
     GetPreviewPoint(preview_length);
     vector<prius_msgs::My_Trajectory_Point>  preview_trajectory;
-    for(int i=1;i<=preview_length;i++)
+    int range;
+    if(goal_id + preview_length<trajectory_info.size())
+    {
+        range = preview_length;
+    }
+    else
+    {
+        range = trajectory_info.size()- goal_id;
+    }
+    for(int i=1;i<=range;i++)
     {
         preview_trajectory.push_back(trajectory_info[goal_id+i]);
         
@@ -85,12 +102,11 @@ vector<prius_msgs::My_Trajectory_Point> TrajectoryAnalyzer::GetPreviewTrajectory
 void TrajectoryAnalyzer::PrintTrajectory()
 {
     //ROS_INFO("Publish the trajectory!");
-    for(int i =trajectory_info.size()-1 ;i<100;i=i-100)
+    for(int i =trajectory_info.size()-1 ;i>100;i=i-1000)
     {
         prius_msgs::My_Trajectory_Point point = trajectory_info[i];
-        cout << "x="<< point.x << endl;
-        cout << "y=" << point.y << endl;
-        cout << "z=" << point.z << endl;
-        cout<<endl; 
+        ROS_INFO_STREAM("x="<< point.x);
+        ROS_INFO_STREAM("y=" << point.y);
+        ROS_INFO_STREAM("z=" << point.z);
     }
 }

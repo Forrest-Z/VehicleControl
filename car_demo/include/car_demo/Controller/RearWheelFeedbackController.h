@@ -9,8 +9,8 @@ using namespace std;
 class RearWheelFeedbackController:public Controller
 {
     public:
-    Status Init(ControlConf &control_conf);
-    Status ComputeControlCmd(TrajectoryAnalyzer &trajectory_analyzer, VehicleState &vehicle_state,prius_msgs::Control &control_cmd);
+    Status Init(const ControlConf &control_conf);
+    Status ComputeControlCmd(TrajectoryAnalyzer &trajectory_analyzer, const VehicleState &vehicle_state,prius_msgs::Control &control_cmd);
 
     double Ts;
     prius_msgs::My_Trajectory_Point goal_state;

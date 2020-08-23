@@ -7,6 +7,7 @@ using namespace std;
 #include <car_demo/Common.h>
 #include <car_demo/Controller/Controller.h>
 #include <car_demo/Controller/DoublePID.h>
+#include<car_demo/Controller/FeedforwardPID.h>
 #include <car_demo/Controller/PurePursuit.h>
 #include <car_demo/Controller/MPCController.h>
 #include <car_demo/Controller/LQRController.h>
@@ -35,11 +36,12 @@ class ControllerAgent
     {
         ROS_INFO("Controller Agent is created!");
     }
-    Status Init(ControlConf &control_conf);
-    Status ComputeControlCmd( TrajectoryAnalyzer &trajectory_analyzer, VehicleState &vehicle_state,prius_msgs::Control &control_cmd);
-    Status RegisterController(ControlConf &control_conf);
+    Status Init(const ControlConf &control_conf);
+    Status ComputeControlCmd( TrajectoryAnalyzer &trajectory_analyzer,const VehicleState &vehicle_state,prius_msgs::Control &control_cmd);
+    Status RegisterController(const ControlConf &control_conf);
     void CurrentController();
-
+    void ClampLongitudinalCmd(const  VehicleState &vehicle_state,prius_msgs::Control &control_cmd);
+    void ClampLateralCmd(const  VehicleState &vehicle_state,prius_msgs::Control &control_cmd);
     vector<Controller*> controller_list;
     int controller_num;
     string longitudinal_controller;

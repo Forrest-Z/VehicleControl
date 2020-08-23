@@ -27,6 +27,7 @@ Status Control::Init()
     init_time = (ros::Time::now()).toSec();
     ROS_INFO("Control Init...");
     Status read_status = control_conf.ReadControlConf(CONTROL_CONF_FILE_NAME);
+    node.getParam("simulation_platform", simulation_platform);
 
     int controllers_num;
     string longitudinal_controller;
@@ -95,14 +96,28 @@ Status Control::Start()
     vehicle_state.state = "WORKING!";
     ROS_INFO_STREAM("Vehicle current state is"<<vehicle_state.state);
 
-    command_pub=node.advertise<prius_msgs::Control>("/prius", 10, true);
+    
     vehicle_info_pub=node.advertise<prius_msgs::Augmented_My_Trajectory_Point>("/prius/vehicle_info", 10, true);
-    trajectory_sub=node.subscribe("/prius/planning_output",10, &Control::TrajectoryCallback,this);
-    localization_sub=node.subscribe("/base_pose_ground_truth",10,&Control::LocalizationCallback,this);
-    vehicle_state_sub=node.subscribe("/prius/chassis_info",10,&Control::VehicleStateCallback,this);
+    //trajectory_sub=node.subscribe("/global_trajectory",10, &Control::TrajectoryCallback,this);
+    trajectory_sub=node.subscribe("/ontime_trajectory",10, &Control::TrajectoryCallback,this);
+    
+    if(simulation_platform=="GAZEBO")
+    {
+        // used for prius model
+        command_pub=node.advertise<nox_msgs::SignalArray>("/chassis_signals", 10, true);
+        localization_sub=node.subscribe("/base_pose_ground_truth",10,&Control::LocalizationCallback,this);
+        ROS_INFO_STREAM("Current simulation platform  is"<<simulation_platform);
+        chassis_info_sub=node.subscribe("/prius/chassis_info",10,&Control::ChassisInfoCallback,this);
+        chassis_state_sub=node.subscribe("chassis_states",10,&Control::ChassisStateCallback,this);
 
-
-
+    }
+    else if(simulation_platform=="CARSIM")
+    {
+        // used for CARSIM simulation
+        carsim_sub=node.subscribe("/carsim_feedback",10, &Control::CARSIMCallback,this);
+        carsim_pub=node.advertise<geometry_msgs::Point>("/carsim_control", 10, true);
+        ROS_INFO_STREAM("Current simulation platform  is"<<simulation_platform);
+    }
     status.status = "OK";
     return status;
 }
@@ -115,6 +130,9 @@ void Control::Stop()
 
 void Control::TrajectoryCallback(const prius_msgs::My_Trajectory &trajectory)
 {
+    trajectory_analyzer.goal_id = 0;
+    trajectory_analyzer.trajectory_info.clear();
+    ROS_INFO("read trajectory");
     Status trajectory_status =trajectory_analyzer.ReadTrajectory(trajectory);
     if(trajectory_status.status != "OK")
     {
@@ -127,7 +145,13 @@ void Control::TrajectoryCallback(const prius_msgs::My_Trajectory &trajectory)
 
 void Control::LocalizationCallback(const nav_msgs::Odometry &localization)
 {   
-    
+    if(count<LOCALIZATION_FREQUENCY/frequency)
+    {
+        ++count;
+        
+        return;
+    }
+    ROS_INFO_STREAM("control count is "<< count);
     Status localization_status=vehicle_state.GetVehicleStateFromLocalization(localization);
     if(localization_status.status != "OK")
     {
@@ -139,12 +163,11 @@ void Control::LocalizationCallback(const nav_msgs::Odometry &localization)
     vehicle_state.ComputeDistanceFromDestination(trajectory_analyzer.destination);
     ROS_INFO_STREAM("destination x ="<<trajectory_analyzer.destination.x);
     ROS_INFO_STREAM("destination y ="<<trajectory_analyzer.destination.y);
-    vehicle_state.ComputeBrakeDistanceAhead();
-    ROS_INFO_STREAM("Brake distance ahead is"<<vehicle_state.brake_distance_ahead);
-    if (trajectory_analyzer.trajectory_info.empty()||vehicle_state.distance_from_destination<=vehicle_state.brake_distance_ahead)
+
+    bool is_reach_destination = abs(trajectory_analyzer.goal_state.x-trajectory_analyzer.destination.x)<0.01
+    &&abs(trajectory_analyzer.goal_state.y-trajectory_analyzer.destination.y)<0.01;
+    if (trajectory_analyzer.trajectory_info.empty()||is_reach_destination)
     {
-        // trajectory_analyzer.trajectory_info.clear();
-        trajectory_analyzer.trajectory_info.clear();
         control_cmd.throttle = 0.0;
         control_cmd.brake = 1.0;
         if(trajectory_analyzer.trajectory_info.empty())
@@ -155,6 +178,115 @@ void Control::LocalizationCallback(const nav_msgs::Odometry &localization)
         {
             ROS_INFO("reach destination!");
         }
+        trajectory_analyzer.trajectory_info.clear();
+        ROS_INFO("Vehicle will stop!");
+    }   
+    else
+    {
+        Status goal_status=trajectory_analyzer.MatchPointByPosition(vehicle_state);
+        if(goal_status.status != "OK")
+        {
+            ROS_INFO("get the nearest point failed!");
+            return;
+        }
+
+        //ROS_INFO("Find the nearest point!");
+        //ROS_INFO_STREAM("goal x="<<trajectory_analyzer.goal_state.x );
+        //ROS_INFO_STREAM("goal y="<<trajectory_analyzer.goal_state.y );
+        if(trajectory_analyzer.goal_state.gear == 1)
+        {
+            control_cmd.shift_gears = control_cmd.FORWARD;
+        }
+        else if(trajectory_analyzer.goal_state.gear == -1)
+        {
+            control_cmd.shift_gears = control_cmd.REVERSE;
+            vehicle_state.heading_angle -= PI;
+        }
+        ROS_INFO_STREAM("direction is "<< trajectory_analyzer.goal_state.gear);
+        vehicle_state.ComputeVelocityError(trajectory_analyzer.goal_state);
+
+        Status cmd_status=controller_agent.ComputeControlCmd(trajectory_analyzer,vehicle_state, control_cmd);
+        if(cmd_status.status != "OK")
+        {
+            ROS_INFO("Compute control command failed!");
+            trajectory_analyzer.trajectory_info.clear();
+            control_cmd.throttle = 0.0;
+            control_cmd.brake = 1.0;
+            ROS_INFO("Vehicle will stop!");
+            return;
+        }
+    }
+
+    defines::Panel panel;
+    // longitudinal
+    panel.Throttle.Set(control_cmd.throttle);
+    panel.Throttle.Enable();
+    panel.Brake.Set(control_cmd.brake);
+    panel.Brake.Enable();
+    
+    panel.Handbrake.Set(0);
+    panel.Handbrake.Enable();
+    if(control_cmd.shift_gears == control_cmd.FORWARD)
+    {
+        panel.Gear.Set(defines::GearState::P);
+    }
+    else if(control_cmd.shift_gears == control_cmd.REVERSE)
+    {
+        panel.Gear.Set(defines::GearState::R);
+    }
+    else if(control_cmd.shift_gears == control_cmd.NEUTRAL)
+    {
+        panel.Gear.Set(defines::GearState::N);
+    }   
+    panel.Gear.Enable();
+    // lateral
+    panel.Steer.Set(control_cmd.steer);
+    panel.Steer.Enable();
+
+    command_pub.publish(panel.ToMsgs());
+    //command_pub.publish(control_cmd);
+
+    //ROS_INFO("Control command is published!");
+    vehicle_state.GetAllData(trajectory_analyzer.goal_id,trajectory_analyzer.preview_id,control_conf);
+    //ROS_INFO("Data is gathered");
+    vehicle_info_pub.publish(vehicle_state.vehicle_info);
+    //ROS_INFO("Vehicle info is published!");
+    WriteInDebug(ofs,vehicle_state.vehicle_info,trajectory_analyzer);
+    ROS_INFO("Write in debug successfully!");
+    return;
+}
+void Control::CARSIMCallback(const nav_msgs::Odometry &carsim_feedback)
+{
+    Status localization_status=vehicle_state.GetVehicleStateFromCarsim(carsim_feedback);
+    if(localization_status.status != "OK")
+    {
+        ROS_INFO("Get vehicle state failed!");
+        return;
+    }
+    // ROS_INFO_STREAM("current x ="<<vehicle_state.movement_state.pose.position.x );
+    // ROS_INFO_STREAM("current y ="<<vehicle_state.movement_state.pose.position.y );
+    vehicle_state.ComputeDistanceFromDestination(trajectory_analyzer.destination);
+    // ROS_INFO_STREAM("destination x ="<<trajectory_analyzer.destination.x);
+    // ROS_INFO_STREAM("destination y ="<<trajectory_analyzer.destination.y);
+    //vehicle_state.ComputeBrakeDistanceAhead();
+    // ROS_INFO_STREAM("Brake distance ahead is"<<vehicle_state.brake_distance_ahead);
+    // ROS_INFO_STREAM("Distance from destination is "<<vehicle_state.distance_from_destination);
+    //if (trajectory_analyzer.trajectory_info.empty()||vehicle_state.distance_from_destination<=vehicle_state.brake_distance_ahead)
+    if (trajectory_analyzer.trajectory_info.empty())
+    {
+        
+        
+        control_cmd.throttle = 0.0;
+        control_cmd.brake = 1.0;
+        if(trajectory_analyzer.trajectory_info.empty())
+        {
+            ROS_INFO("trajectory is empty!");
+        }
+        else
+        {
+            ROS_INFO("reach destination!");
+        }
+        trajectory_analyzer.trajectory_info.clear();
         ROS_INFO("Vehicle will stop!");
     }
     else
@@ -166,10 +298,12 @@ void Control::LocalizationCallback(const nav_msgs::Odometry &localization)
             return;
         }
 
-        ROS_INFO("Find the nearest point!");
-        ROS_INFO_STREAM("goal x="<<trajectory_analyzer.goal_state.x );
-        ROS_INFO_STREAM("goal y="<<trajectory_analyzer.goal_state.y );
+        // ROS_INFO("Find the nearest point!");
+        // ROS_INFO_STREAM("goal x="<<trajectory_analyzer.goal_state.x );
+        // ROS_INFO_STREAM("goal y="<<trajectory_analyzer.goal_state.y );
         
+        vehicle_state.ComputeVelocityError(trajectory_analyzer.goal_state);
+
         Status cmd_status=controller_agent.ComputeControlCmd(trajectory_analyzer,vehicle_state, control_cmd);
         if(cmd_status.status != "OK")
         {
@@ -181,28 +315,45 @@ void Control::LocalizationCallback(const nav_msgs::Odometry &localization)
             return;
         }
     }  
-    command_pub.publish(control_cmd);
+    geometry_msgs::Point carsim_cmd;
+    carsim_cmd.x=control_cmd.throttle;
+    carsim_cmd.y=control_cmd.brake;
+    carsim_cmd.z=control_cmd.steer;
+    carsim_pub.publish(carsim_cmd);
     //ROS_INFO("Control command is published!");
-    vehicle_state.GetAllData(trajectory_analyzer.goal_state, trajectory_analyzer.preview_state,control_conf);
+    vehicle_state.GetAllData(trajectory_analyzer.goal_id,trajectory_analyzer.preview_id,control_conf);
+    //ROS_INFO("Data is gathered");
     vehicle_info_pub.publish(vehicle_state.vehicle_info);
     //ROS_INFO("Vehicle info is published!");
-    WriteInDebug(ofs,vehicle_state.vehicle_info);
-    //ROS_INFO("Write in debug successfully!");
+    WriteInDebug(ofs,vehicle_state.vehicle_info,trajectory_analyzer);
+    ROS_INFO("Write in debug successfully!");
     return;
+    
 }
-
-void Control::VehicleStateCallback(const prius_msgs::VehicleInfo &current_state)
+void Control::ChassisInfoCallback(const prius_msgs::VehicleInfo &chassis_info)
 {
-    Status chassis_status=vehicle_state.GetVehicleStateFromChassis(current_state);
+    Status chassis_status=vehicle_state.GetVehicleStateFromChassis(chassis_info);
     if(chassis_status.status != "OK")
     {
-        ROS_INFO("Get vehicle state failed!");
+        ROS_INFO("Get vehicle info failed!");
         return;
     }
-    ROS_INFO("Get vehicle state successfully!");
-        
+    //ROS_INFO("Get vehicle info successfully!");    
 }
-void Control::WriteInDebug(ofstream &ofs, prius_msgs::Augmented_My_Trajectory_Point vehicle_info)
+
+
+void Control::ChassisStateCallback(const nox_msgs::SignalArray::ConstPtr &chassis_state)
+{
+    defines::Panel panel;
+    panel.FromMsgs(*chassis_state);
+    double throttle = panel.Throttle.Get();
+    double brake = panel.Brake.Get();
+    double speed = panel.Speed.Get();
+    // ROS_INFO_STREAM("Panel Throttle is "<<throttle);
+    // ROS_INFO_STREAM("Panel Brake is "<<brake);
+    // ROS_INFO_STREAM("Panel Speed is "<<speed);
+}
+void Control::WriteInDebug(ofstream &ofs, prius_msgs::Augmented_My_Trajectory_Point vehicle_info,TrajectoryAnalyzer &trajectory_analyzer)
 {
     ofs<<"trajectory_point{"<<endl;
     ofs<<"  time: "<<vehicle_info.vehicle_info.header.stamp.toSec()<<endl;
@@ -215,11 +366,6 @@ void Control::WriteInDebug(ofstream &ofs, prius_msgs::Augmented_My_Trajectory_Po
     ofs<<"  distance_error: "<<vehicle_info.distance_error<<endl;
     ofs<<"  velocity_error: "<<vehicle_info.velocity_error<<endl;
     ofs<<"  heading_error: "<<vehicle_info.heading_error<<endl;
-    ofs<<"  goal_x: "<<vehicle_info.goal_x<<endl;
-    ofs<<"  goal_y: "<<vehicle_info.goal_y<<endl;
-    ofs<<"  preview_x: "<<vehicle_info.preview_x<<endl;
-    ofs<<"  preview_y: "<<vehicle_info.preview_y<<endl;
-
     ofs<<"  x_from_chassis: "<<vehicle_info.vehicle_info.localization.x<<endl;
     ofs<<"  y_from_chassis: "<<vehicle_info.vehicle_info.localization.y<<endl;
     ofs<<"  z_from_chassis: "<<vehicle_info.vehicle_info.localization.z<<endl;
@@ -256,13 +402,4 @@ void Control::WriteInDebug(ofstream &ofs, prius_msgs::Augmented_My_Trajectory_Po
     ofs<<"  br_brake_torque: "<<vehicle_info.vehicle_info.longitudinal_data.br_brake_torque<<endl;
     ofs<<"}"<<endl;    
 
-}
-
-
-int main(int argc, char **argv)
-{
-    ros::init(argc,argv,"ControlModule");
-    Control Control;
-    Control.Spin();
-    return 0;
 }

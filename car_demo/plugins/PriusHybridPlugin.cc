@@ -32,6 +32,7 @@ using namespace std;
 #include <gazebo/common/Time.hh>
 #include "PriusHybridPlugin.hh"
 
+
 #include <ros/ros.h>
 
 const string simulation_result="/home/ht/ControlModule/src/car_demo/recorded_trajectories/recorded_trajectory.txt";
@@ -44,8 +45,9 @@ namespace gazebo
   class PriusHybridPluginPrivate
   {
     public: prius_msgs::VehicleInfo vehicle_info;
+    public: defines::Panel vehicle_state;
     public: double previous_velocity = 0.0;
-    public: double Ts=0.01;
+    public: double Ts=0.1;
     public: ofstream ofs;
 
 
@@ -63,6 +65,7 @@ namespace gazebo
 
     public: ros::Subscriber controlSub;
     public: ros::Publisher vehicle_info_pub;
+    public: ros::Publisher vehicle_state_pub;
 
     /// \brief Pointer to the world
     public: physics::WorldPtr world;
@@ -327,18 +330,22 @@ PriusHybridPlugin::PriusHybridPlugin()
 }
 
 
-void PriusHybridPlugin::OnPriusCommand(const prius_msgs::Control::ConstPtr &msg)
+void PriusHybridPlugin::OnPriusCommand(const nox_msgs::SignalArray::ConstPtr& msg)
 {
   // 获得最近的指令的时间
   this->dataPtr->lastSteeringCmdTime = this->dataPtr->world->SimTime();
   this->dataPtr->lastPedalCmdTime = this->dataPtr->world->SimTime();
-
+  defines::Panel panel;
+  panel.FromMsgs(*msg);
+  // ROS_INFO_STREAM("steer command = "<<panel.Steer.Get());
+  // ROS_INFO_STREAM("Throttle command = "<<panel.Throttle.Get());
+  // ROS_INFO_STREAM("Brake command = "<<panel.Brake.Get());
   // Steering wheel command
   // 小于0表示往右转
   // 转化成角度，low和high绝对值是一样的，角度也有正负，负的是右转
-  double handCmd = (msg->steer < 0.)
-    ? (msg->steer * -this->dataPtr->handWheelLow)
-    : (msg->steer * this->dataPtr->handWheelHigh);
+  double handCmd = (panel.Steer.Get() < 0.)
+    ? (panel.Steer.Get()  * -this->dataPtr->handWheelLow)
+    : (panel.Steer.Get()  * this->dataPtr->handWheelHigh);
   // 把方向盘转角限制在一个范围内，然后把处理过后的方向盘转角给控制指令变量
   handCmd = ignition::math::clamp(handCmd, this->dataPtr->handWheelLow,
       this->dataPtr->handWheelHigh);
@@ -346,26 +353,24 @@ void PriusHybridPlugin::OnPriusCommand(const prius_msgs::Control::ConstPtr &msg)
 
   // 先对刹车和油门都做一个限制，限制在0～1
   // Brake command
-  double brake = ignition::math::clamp(msg->brake, 0.0, 1.0);
+  double brake = ignition::math::clamp(panel.Brake.Get() , 0.0, 1.0);
   this->dataPtr->brakePedalPercent = brake;
 
   // Throttle command
-  double throttle = ignition::math::clamp(msg->throttle, 0.0, 1.0);
+  double throttle = ignition::math::clamp(panel.Throttle.Get(), 0.0, 1.0);
   this->dataPtr->gasPedalPercent = throttle;
   
   // 检查接收到的档位指令，判断是前进，倒车还是空档
-  switch (msg->shift_gears)
+  switch (panel.Gear.Get())
   {
-    case prius_msgs::Control::NEUTRAL:
-      this->dataPtr->directionState = PriusHybridPluginPrivate::NEUTRAL;
-      break;
-    case prius_msgs::Control::FORWARD:
-      this->dataPtr->directionState = PriusHybridPluginPrivate::FORWARD;
-      break;
-    case prius_msgs::Control::REVERSE:
+    case defines::GearState::R:
       this->dataPtr->directionState = PriusHybridPluginPrivate::REVERSE;
       break;
+    case defines::GearState::N:
+      this->dataPtr->directionState = PriusHybridPluginPrivate::NEUTRAL;
+      break;
     default:
+      this->dataPtr->directionState = PriusHybridPluginPrivate::FORWARD;
       break;
   }
 }
@@ -410,7 +415,7 @@ void PriusHybridPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
   if (_sdf->HasElement("robotNamespace"))
     this->robot_namespace_ = _sdf->GetElement("robotNamespace")->Get<std::string>() + "/";
   ros::NodeHandle nh(this->robot_namespace_);
-  this->dataPtr->controlSub = nh.subscribe("prius", 10, &PriusHybridPlugin::OnPriusCommand, this);
+  this->dataPtr->controlSub = nh.subscribe("chassis_signals", 10, &PriusHybridPlugin::OnPriusCommand, this);
 
   // 订阅重置信息，接收到就重置
   this->dataPtr->node.Subscribe("/prius/reset",
@@ -432,7 +437,7 @@ void PriusHybridPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
     this->dataPtr->node.Advertise<ignition::msgs::Double_V>("/prius/console");
 
   this->dataPtr->vehicle_info_pub = this->dataPtr->nh.advertise<prius_msgs::VehicleInfo>("/prius/chassis_info",10,true);
-
+  this->dataPtr->vehicle_state_pub = this->dataPtr->nh.advertise<nox_msgs::SignalArray>("chassis_states",10,true);
   
   // 得到chassis的名字，如果chassis不存在，就返回
   std::string chassisLinkName = dPtr->model->GetName() + "::"
@@ -1378,7 +1383,7 @@ void PriusHybridPlugin::Update()
 
     // Distance traveled in miles.
     // 行驶过的距离
-    this->dataPtr->odom += (fabs(linearVel) * dt/3600);
+    //this->dataPtr->odom += (fabs(linearVel) * dt/3600);
 
     // \todo: Actually compute MPG（每加仑汽油的英里数）
     double mpg = 1.0 / std::max(linearVel, 0.0);
@@ -1427,7 +1432,7 @@ void PriusHybridPlugin::Update()
     
     this->dataPtr->vehicle_info.longitudinal_data.vel_from_localization=linearVel_chassis; // 通过定位计算的车速
     this->dataPtr->vehicle_info.longitudinal_data.vel_from_wheels=linearVel/2.23694; // 通过轮速计算的车速
-    this->dataPtr->vehicle_info.longitudinal_data.traveled_distance=this->dataPtr->odom*2.23694/3600; // 行驶距离
+    this->dataPtr->vehicle_info.longitudinal_data.traveled_distance=this->dataPtr->odom*3600/2.23694; // 行驶距离
     this->dataPtr->vehicle_info.longitudinal_data.acceleration=(linearVel_chassis-this->dataPtr->previous_velocity)/this->dataPtr->Ts; // 加速度
     
 
@@ -1464,6 +1469,17 @@ void PriusHybridPlugin::Update()
     this->dataPtr->vehicle_info.longitudinal_data.br_brake_torque=dPtr->brJointFriction + brakePercent * dPtr->backBrakeTorque;
 
     this->dataPtr->vehicle_info_pub.publish(this->dataPtr->vehicle_info);
+
+
+    this->dataPtr->vehicle_state.Throttle.Set(999);
+    this->dataPtr->vehicle_state.Throttle.Enable();
+    this->dataPtr->vehicle_state.Brake.Set(888);
+    this->dataPtr->vehicle_state.Brake.Enable();
+    this->dataPtr->vehicle_state.Speed.Set(linearVel_chassis);
+    //ROS_INFO_STREAM("speed from plugin is "<<linearVel_chassis);
+    this->dataPtr->vehicle_state_pub.publish(this->dataPtr->vehicle_state.ToMsgs());
+
+
     if(record_enabled==true)
     {
       RecordTrajectory(this->dataPtr->ofs,this->dataPtr->vehicle_info);

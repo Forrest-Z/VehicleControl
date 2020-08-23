@@ -27,6 +27,7 @@ void GetData(int start,int end,string s,double &target)
     iss >> target;   
 }
 
+// read waytous simulation trajectory
 int ReadTrueTrajectory(prius_msgs::My_Trajectory &my_trajectory, ifstream& ifs)
 {
     string s;
@@ -65,6 +66,8 @@ int ReadTrueTrajectory(prius_msgs::My_Trajectory &my_trajectory, ifstream& ifs)
     return num;
 } */
 
+
+// read trajectory file generated from matlab
 int ReadFromFile(prius_msgs::My_Trajectory &my_trajectory, ifstream& ifs)
 {
 
@@ -101,37 +104,37 @@ int ReadFromFile(prius_msgs::My_Trajectory &my_trajectory, ifstream& ifs)
 
 void PrintData(prius_msgs::My_Trajectory &my_trajectory, int index)
 {
-    cout<<my_trajectory.header.stamp<<endl;
-    cout << my_trajectory.header.seq << endl;
+    ROS_INFO_STREAM("stamp"<<my_trajectory.header.stamp);
+    ROS_INFO_STREAM("seq"<<my_trajectory.header.seq);
     prius_msgs::My_Trajectory_Point point = my_trajectory.trajectory_points[index];
-    cout << "x="<< point.x << endl;
-    cout << "y=" << point.y << endl;
-    cout << "z=" << point.z << endl;
-    cout << "theta=" << point.theta << endl;
-    cout << "kappa=" << point.kappa << endl;
-    cout << "s=" << point.s << endl;
-    cout << "dkappa=" << point.dkappa << endl;
-    cout << "v=" << point.v << endl;
-    cout << "a=" << point.a << endl;
-    cout << "relative_time=" << point.relative_time << endl;
-    cout<<endl;
+    ROS_INFO_STREAM("x="<< point.x);
+    ROS_INFO_STREAM("y=" << point.y);
+    ROS_INFO_STREAM("z=" << point.z);
+    ROS_INFO_STREAM("theta=" << point.theta);
+    ROS_INFO_STREAM("kappa=" << point.kappa);
+    ROS_INFO_STREAM("s=" << point.s);
+    ROS_INFO_STREAM("dkappa=" << point.dkappa);
+    ROS_INFO_STREAM( "v=" << point.v);
+    ROS_INFO_STREAM("a=" << point.a);
+    ROS_INFO_STREAM("relative_time=" << point.relative_time);
+    ROS_INFO_STREAM("gear=" << point.gear);
 }
 
 int main(int argc, char **argv)
 {
     ros::init(argc,argv,"trajectory_publisher");
     ros::NodeHandle node;
-    ros::Publisher trajectory_pub=node.advertise<prius_msgs::My_Trajectory>("/prius/planning_output",10);
+    ros::Publisher trajectory_pub=node.advertise<prius_msgs::My_Trajectory>("/global_trajectory",10);
 
     string file_path;
     node.getParam("test_trajectory_path", file_path);
 
-    //string file_path="/home/ht/ControlModule/src/car_demo/test_trajectories/recorded_trajectory_1_record.txt";
+    //string file_path="/home/ht/ControlModule/src/car_demo/test_trajectories/mat_trajectory_10.txt";
 
     int index=file_path.find(".");
     int index2=file_path.rfind("_",index);
     string trajectory_velocity;
-    node.param<string>("controllers_num", trajectory_velocity, "");
+    node.param<string>("trajectory_velocity", trajectory_velocity, "xx");
     trajectory_velocity=file_path.substr(index2+1,index-index2-1);
     node.setParam("trajectory_velocity",trajectory_velocity);
     ROS_INFO_STREAM("velocity is "<<trajectory_velocity);
@@ -148,7 +151,7 @@ int main(int argc, char **argv)
     ifs.open(file_path, ios::in);
     if (!ifs.is_open())
     {
-        cout << "读取失败" << endl;
+        ROS_INFO("读取失败");
         return 0;
     }
 
@@ -172,8 +175,8 @@ int main(int argc, char **argv)
     int i = 0;
     while(i<1401)
     {
-        cout<<"the "<<i<<" trajectory"<<endl;
-        PrintData(my_trajectory,i);
+        ROS_INFO_STREAM("the "<<i<<" trajectory");
+        //PrintData(my_trajectory,i);
         i=i+100;
     }
 

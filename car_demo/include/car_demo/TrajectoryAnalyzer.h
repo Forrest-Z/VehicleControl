@@ -15,9 +15,9 @@ class TrajectoryAnalyzer
     {
         ROS_INFO("Trajectory analyzer is created!");
     }
-    Status Init(ControlConf &control_conf);
+    Status Init(const ControlConf &control_conf);
     Status ReadTrajectory(const prius_msgs::My_Trajectory &trajectory);
-    double ComputeDist(prius_msgs::My_Trajectory_Point path_point, double x, double y);
+    double ComputeDist(const prius_msgs::My_Trajectory_Point path_point, double x, double y);
     Status MatchPointByPosition(VehicleState &vehicle_state);
     double MatchPointByPositionForStanley(double x,double y);
     void GetPreviewPoint(double preview_length);

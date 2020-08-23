@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<launch>
+  <param name="simulation_platform" value="CARSIM"/>
+  <node pkg="car_demo" type="Main" name="ControlModule"/>
+
+</launch>

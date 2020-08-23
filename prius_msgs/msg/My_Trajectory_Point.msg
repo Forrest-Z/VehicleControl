@@ -8,3 +8,4 @@ float64 dkappa
 float64 v
 float64 a
 float64 relative_time
+float64 gear

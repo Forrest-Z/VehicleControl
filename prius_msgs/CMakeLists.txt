@@ -10,36 +10,12 @@ find_package(catkin REQUIRED COMPONENTS
 add_message_files(
   FILES
   My_Trajectory.msg
-)
-
-add_message_files(
-  FILES
   My_Trajectory_Point.msg
-)
-add_message_files(
-  FILES
   VehicleInfo.msg
-)
-add_message_files(
-  FILES
   DimensionInfo.msg
-)
-add_message_files(
-  FILES
   LateralData.msg
-)
-add_message_files(
-  FILES
   LongitudinalData.msg
-)
-
-add_message_files(
-  FILES
   Control.msg
-)
-
-add_message_files(
-  FILES
   Augmented_My_Trajectory_Point.msg
 )
 

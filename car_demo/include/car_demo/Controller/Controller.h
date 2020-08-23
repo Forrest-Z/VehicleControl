@@ -12,8 +12,8 @@ using namespace std;
 class Controller
 {
     public:
-    virtual Status Init(ControlConf &control_conf)=0;
-    virtual Status ComputeControlCmd(TrajectoryAnalyzer &trajectory_analyzer, VehicleState &vehicle_state,prius_msgs::Control &control_cmd)=0;
+    virtual Status Init(const ControlConf &control_conf)=0;
+    virtual Status ComputeControlCmd(TrajectoryAnalyzer &trajectory_analyzer,const VehicleState &vehicle_state,prius_msgs::Control &control_cmd)=0;
     string GetName();
     Status Reset();
     void Stop();

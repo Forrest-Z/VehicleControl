@@ -59,7 +59,7 @@ int PIDController::control_position(double error, double &compensation,double dt
     previous_error_ = error;
     previous_output_ = output;
     compensation = output;
-    ROS_INFO("compute compensation(pos) successfully!");
+    //ROS_INFO("compute compensation(pos) successfully!");
     return 0;
 }
 
@@ -104,6 +104,19 @@ int PIDController::control_increment(double error, double &compensation, double 
     output = previous_output_+increment;
     previous_output_ = output;
     compensation = output;
-    ROS_INFO("compute compensation(inc) successfully!");
+    //ROS_INFO("compute compensation(inc) successfully!");
     return 0;
+}
+
+void PIDController::AdjustKp(int multiplier)
+{
+    m_kp=m_kp*multiplier;
+}
+void PIDController::AdjustKi(int multiplier)
+{
+    m_ki=m_ki*multiplier;
+}
+void PIDController::AdjustKd(int multiplier)
+{
+    m_kd=m_kd*multiplier;
 }

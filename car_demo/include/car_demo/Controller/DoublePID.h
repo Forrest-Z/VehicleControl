@@ -9,8 +9,8 @@ using namespace std;
 class DoublePID:public Controller
 {
     public:
-    Status Init(ControlConf &control_conf);
-    Status ComputeControlCmd(TrajectoryAnalyzer &trajectory_analyzer, VehicleState &vehicle_state,prius_msgs::Control &control_cmd);
+    Status Init(const ControlConf &control_conf);
+    Status ComputeControlCmd(TrajectoryAnalyzer &trajectory_analyzer,const  VehicleState &vehicle_state,prius_msgs::Control &control_cmd);
 
 
     PIDController velocity_PID;
@@ -20,6 +20,8 @@ class DoublePID:public Controller
     double acc_compensation;
     double velocity_compensation;
     double slope_compensation;
+    double acc_error;
+    double velocity_error;
 
     double torque_cmd;
 

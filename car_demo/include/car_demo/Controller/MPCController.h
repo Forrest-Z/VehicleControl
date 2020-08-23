@@ -14,12 +14,12 @@ using namespace Eigen;
 class MPCController:public Controller
 {
     public:
-    Status Init(ControlConf &control_conf);
-    Status ComputeControlCmd(TrajectoryAnalyzer &trajectory_analyzer, VehicleState &vehicle_state,prius_msgs::Control &control_cmd);
-    void GetAugmentedMatrix(MatrixXd &matrix_augmented,MatrixXd &matrix,int num);
-    void ComputeStateError(prius_msgs::My_Trajectory_Point &goal_state,VehicleState &vehicle_state);
+    Status Init(const ControlConf &control_conf);
+    Status ComputeControlCmd(TrajectoryAnalyzer &trajectory_analyzer, const VehicleState &vehicle_state,prius_msgs::Control &control_cmd);
+    void GetAugmentedMatrix(MatrixXd &matrix_augmented,const MatrixXd &matrix,int num);
+    void ComputeStateError(const prius_msgs::My_Trajectory_Point &goal_state,const VehicleState &vehicle_state);
     void CreatePredictionModel();
-    double GetPlannedSteeringAngle(prius_msgs::My_Trajectory_Point point);
+    double GetPlannedSteeringAngle(const prius_msgs::My_Trajectory_Point point);
 
 
     double pi=3.1415926;

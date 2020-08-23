@@ -11,13 +11,13 @@ using namespace Eigen;
 class LQRController:public Controller
 {
     public:
-    Status Init(ControlConf &control_conf);
-    Status ComputeControlCmd( TrajectoryAnalyzer &trajectory_analyzer, VehicleState &vehicle_state,prius_msgs::Control &control_cmd);
-    void ComputeStateError(prius_msgs::My_Trajectory_Point &goal_state, VehicleState &vehicle_state);
+    Status Init(const ControlConf &control_conf);
+    Status ComputeControlCmd( TrajectoryAnalyzer &trajectory_analyzer, const VehicleState &vehicle_state,prius_msgs::Control &control_cmd);
+    void ComputeStateError(const prius_msgs::My_Trajectory_Point &goal_state,const  VehicleState &vehicle_state);
     void SolveLQRProblem(const double tolerance,const int max_iteration_num);
-    double GetPreviewSteeringAngle(prius_msgs::My_Trajectory_Point point);
-    void LQRSolverWithPrediction(TrajectoryAnalyzer &trajectory_analyzer,VehicleState &vehicle_state);
-    void LQRSOlver(TrajectoryAnalyzer &trajectory_analyzer,VehicleState &vehicle_state);
+    double GetPreviewSteeringAngle(const prius_msgs::My_Trajectory_Point point);
+    void LQRSolverWithPrediction(TrajectoryAnalyzer &trajectory_analyzer,const VehicleState &vehicle_state);
+    void LQRSOlver(const prius_msgs::My_Trajectory_Point &goal_state);
     void UpdateKineticModel(double current_velocity,double heading,double steering_angle);
 
     double Ts;
@@ -32,6 +32,8 @@ class LQRController:public Controller
     double Q_1_1;
     double Q_2_2;
     double prediction_enabled;
+    double previous_steering_angle=0.0;
+    
 
     int Nx=3;
     int Nu=1;

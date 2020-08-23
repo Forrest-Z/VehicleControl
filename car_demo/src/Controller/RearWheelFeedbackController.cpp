@@ -1,6 +1,6 @@
 #include<car_demo/Controller/RearWheelFeedbackController.h>
 
-Status RearWheelFeedbackController::Init(ControlConf &control_conf)
+Status RearWheelFeedbackController::Init(const ControlConf &control_conf)
 {
     name = "PurePursuit controller";
     Ts = control_conf.conf_param.Ts;
@@ -14,7 +14,7 @@ Status RearWheelFeedbackController::Init(ControlConf &control_conf)
 
 }
 
-Status RearWheelFeedbackController::ComputeControlCmd(TrajectoryAnalyzer &trajectory_analyzer, VehicleState &vehicle_state,prius_msgs::Control &control_cmd)
+Status RearWheelFeedbackController::ComputeControlCmd(TrajectoryAnalyzer &trajectory_analyzer,const  VehicleState &vehicle_state,prius_msgs::Control &control_cmd)
 {
     ROS_INFO("Use Rear Wheel Feedback Controller");
     double x = vehicle_state.movement_state.pose.position.x;
@@ -30,8 +30,8 @@ Status RearWheelFeedbackController::ComputeControlCmd(TrajectoryAnalyzer &trajec
     double distance= trajectory_analyzer.ComputeDist(goal_state,x,y);
     double dx=x-goal_state.x;
     double dy=y-goal_state.y;
-    ROS_INFO_STREAM("dx = "<<dx);
-    ROS_INFO_STREAM("dy = "<<dy);
+    // ROS_INFO_STREAM("dx = "<<dx);
+    // ROS_INFO_STREAM("dy = "<<dy);
     lateral_error = dy*cos(goal_state.theta)-dx*sin(goal_state.theta);
     //lateral_error=distance;
     ROS_INFO_STREAM("lateral_error = "<<lateral_error);
@@ -53,15 +53,15 @@ Status RearWheelFeedbackController::ComputeControlCmd(TrajectoryAnalyzer &trajec
 
     omega = current_velocity * goal_state.kappa*cos(heading_error)/(1-goal_state.kappa*lateral_error)
     -yaw_error_gain*abs(current_velocity)*heading_error-lateral_error_gain*current_velocity*lateral_error*a;
-    ROS_INFO_STREAM("omega = "<<omega);
-    ROS_INFO_STREAM("item1 = "<<goal_state.kappa*cos(heading_error)/(1-goal_state.kappa*lateral_error));
-    ROS_INFO_STREAM("item2 = "<<yaw_error_gain*heading_error);
-    ROS_INFO_STREAM("item3 = "<<lateral_error_gain*lateral_error*a);
-    ROS_INFO_STREAM("item4 = "<<a);
+    // ROS_INFO_STREAM("omega = "<<omega);
+    // ROS_INFO_STREAM("item1 = "<<goal_state.kappa*cos(heading_error)/(1-goal_state.kappa*lateral_error));
+    // ROS_INFO_STREAM("item2 = "<<yaw_error_gain*heading_error);
+    // ROS_INFO_STREAM("item3 = "<<lateral_error_gain*lateral_error*a);
+    // ROS_INFO_STREAM("item4 = "<<a);
 
-    ROS_INFO_STREAM("current_heading = "<<vehicle_state.heading_angle);
-    ROS_INFO_STREAM("goal_heading = "<<goal_state.theta);
-    ROS_INFO_STREAM("heading_error = "<<heading_error);
+    // ROS_INFO_STREAM("current_heading = "<<vehicle_state.heading_angle);
+    // ROS_INFO_STREAM("goal_heading = "<<goal_state.theta);
+    // ROS_INFO_STREAM("heading_error = "<<heading_error);
 
     steering_angle = atan2(wheel_base*omega/current_velocity,1.0);
     if(steering_angle>pi)
@@ -72,23 +72,8 @@ Status RearWheelFeedbackController::ComputeControlCmd(TrajectoryAnalyzer &trajec
     {
         steering_angle=steering_angle+2*pi;
     }
-    steering_angle = steering_angle/vehicle_state.max_steer;
-
-    ROS_INFO_STREAM("steering angle(before clamp)="<<steering_angle);
-    if(steering_angle>1)
-    {
-        steering_angle=1;
-    }
-    else if(steering_angle<-1)
-    {
-        steering_angle = -1;
-    }
-    control_cmd.steer=steering_angle;
-    ROS_INFO_STREAM("steering angle="<<steering_angle);
+    control_cmd.steer = steering_angle;
     ROS_INFO("Compute lateral command successfully!");
     status.status = "OK";
     return status;
-
-
-
 }

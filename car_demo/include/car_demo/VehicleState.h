@@ -9,6 +9,9 @@ using namespace std;
 #include <prius_msgs/My_Trajectory.h>
 #include <prius_msgs/Augmented_My_Trajectory_Point.h>
 #include <prius_msgs/VehicleInfo.h>
+#include <deque>
+
+const double PI=3.1415926;
 
 struct MovementState
 {
@@ -23,18 +26,21 @@ class VehicleState
     {
         ROS_INFO("Vehicle state is created!");
     }
-    Status Init(ControlConf &control_conf);
+    Status Init(const ControlConf &control_conf);
     Status GetVehicleStateFromLocalization(const nav_msgs::Odometry &localization);
+    Status GetVehicleStateFromCarsim(const nav_msgs::Odometry &carsim_feedback);
     Status GetVehicleStateFromChassis(const prius_msgs::VehicleInfo &current_state);
-    void ComputeDistanceFromDestination(prius_msgs::My_Trajectory_Point destination);
+    void ComputeDistanceFromDestination(const prius_msgs::My_Trajectory_Point destination);
     void ComputeVelocity();
     void ComputeAcc();
     void ComputeEular(double x,double y,double z,double w);
     void ComputeHeadingAngle();
     void ComputeSlope();
-    void GetAllData(const prius_msgs::My_Trajectory_Point &goal_state, const prius_msgs::My_Trajectory_Point &preview_state, const ControlConf &control_conf);
-    void ComputeBrakeDistanceAhead();
-
+    void GetAllData(double goal_id,double preview_id,const ControlConf &control_conf);
+    void ComputeVelocityError(const prius_msgs::My_Trajectory_Point &goal_state);
+    double Filter(const deque<double> pitch_deque,double method);
+    double MedianFilter(deque<double> pitch_deque);
+    double SlideWindowMeanFilter(deque<double> pitch_deque);
     
 
 
@@ -42,6 +48,7 @@ class VehicleState
     MovementState movement_state; 
     prius_msgs::VehicleInfo info_from_chassis;
     prius_msgs::Augmented_My_Trajectory_Point vehicle_info;
+    deque<double> pitch_deque;
 
     double previous_velocity=0.0;
     double current_velocity=0.0;
@@ -66,6 +73,8 @@ class VehicleState
     // vehicle_attributes
     double Ts;
     double slope_threshold;
+    double pitch_deque_length;
+    double filter_method;
     double G;
     double mass;
     double friction_coefficient;

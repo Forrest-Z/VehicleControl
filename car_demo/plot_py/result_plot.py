@@ -113,7 +113,6 @@ plt.grid()
 
 plt.figure(2)
 plt.title('velocity comparison with time') 
-
 plt.plot(desired_trajectory[9,1:-1], desired_trajectory[7,1:-1], color='cyan', label='desired_trajectory')
 plt.plot(actual_trajectory[0,1:-1]-initial_time-13 , actual_trajectory[3,1:-1], 'b', label='actual_trajectory')
 plt.legend()
@@ -132,7 +131,6 @@ plt.grid()
 
 plt.figure(4)
 plt.title('velocity comparison with station') 
-
 plt.plot(desired_trajectory[5,1:-1], desired_trajectory[7,1:-1], color='cyan', label='desired_trajectory')
 plt.plot(actual_trajectory[21,1:-1] , actual_trajectory[3,1:-1], 'b', label='actual_trajectory')
 plt.legend()

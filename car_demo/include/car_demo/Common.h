@@ -10,19 +10,31 @@ class Status
     public:
     string status;
 };
+
+const int LOCALIZATION_FREQUENCY=100;
+
 struct ConfParam
 {
     // common
     double Ts;
     // controller_agent
     double controller_num;
-    // PID
+    // Double PID
     double velocity_kp;
     double velocity_ki;
     double velocity_kd;
     double acc_kp;
     double acc_ki;
     double acc_kd;
+    // Feedforward PID
+    double feedforward_enable;
+    double slope_compensation_enable;
+    double feedforward_gain;
+    double detection_length;
+    double error_threshold;
+    double ff_kp;
+    double ff_ki;
+    double ff_kd;
     // purepursuit
     double pure_pursuit_preview_length; 
     // Stanley
@@ -55,8 +67,11 @@ struct ConfParam
 
 
 
-    // vehicle_attributes
+    // Vehicle state estimation
     double slope_threshold;
+    double pitch_deque_length;
+    double filter_method;
+    // Physical Attributes
     double G;
     double mass;
     double friction_coefficient;
@@ -97,7 +112,7 @@ class ControlConf
         ROS_INFO("Control_conf is created!");
 
     }
-    Status ReadControlConf(string control_conf_file_name);
+    Status ReadControlConf(const string control_conf_file_name);
     void printData();   
 
     ifstream ifs;

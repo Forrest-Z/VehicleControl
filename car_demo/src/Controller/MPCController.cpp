@@ -1,6 +1,6 @@
 #include<car_demo/Controller/MPCController.h>
 
-Status MPCController::Init(ControlConf &control_conf)
+Status MPCController::Init(const ControlConf &control_conf)
 {
     name = "MPC controller";
     prediction_length=control_conf.conf_param.MPC_predict_length;
@@ -36,7 +36,7 @@ Status MPCController::Init(ControlConf &control_conf)
     return status;
 
 }
-void MPCController::GetAugmentedMatrix(MatrixXd &matrix_augmented,MatrixXd &matrix,int num)
+void MPCController::GetAugmentedMatrix(MatrixXd &matrix_augmented,const MatrixXd &matrix,int num)
 {
 
     for(int i =0;i<num;i++)
@@ -100,7 +100,7 @@ void MPCController::CreatePredictionModel()
     ROS_INFO_STREAM("B_augmented(4,1) = "<<B_augmented(4,1));
     ROS_INFO_STREAM("B_augmented(5,1) = "<<B_augmented(5,1)); */
 }
-void MPCController::ComputeStateError(prius_msgs::My_Trajectory_Point &goal_state,VehicleState &vehicle_state)
+void MPCController::ComputeStateError(const prius_msgs::My_Trajectory_Point &goal_state,const VehicleState &vehicle_state)
 {
     double dx = vehicle_state.movement_state.pose.position.x-goal_state.x;
     double dy = vehicle_state.movement_state.pose.position.y-goal_state.y;
@@ -123,7 +123,7 @@ void MPCController::ComputeStateError(prius_msgs::My_Trajectory_Point &goal_stat
     ROS_INFO_STREAM("the heading error is "<<state_error(2));
 
 }   
-double MPCController::GetPlannedSteeringAngle(prius_msgs::My_Trajectory_Point point)
+double MPCController::GetPlannedSteeringAngle(const prius_msgs::My_Trajectory_Point point)
 {
     double planned_steering_angle;
     if(point.kappa==0)
@@ -140,22 +140,22 @@ double MPCController::GetPlannedSteeringAngle(prius_msgs::My_Trajectory_Point po
     }
     return planned_steering_angle;
 }
-Status MPCController::ComputeControlCmd(TrajectoryAnalyzer &trajectory_analyzer, VehicleState &vehicle_state,prius_msgs::Control &control_cmd)
+Status MPCController::ComputeControlCmd(TrajectoryAnalyzer &trajectory_analyzer, const VehicleState &vehicle_state,prius_msgs::Control &control_cmd)
 {
     ROS_INFO("Use MPC controller");
     ComputeStateError(trajectory_analyzer.goal_state,vehicle_state);
-    
-    planned_velocity=trajectory_analyzer.goal_state.v;
+    current_velocity=vehicle_state.current_velocity;
+    //planned_velocity=trajectory_analyzer.goal_state.v;
     planned_heading = trajectory_analyzer.goal_state.theta;
     planned_steering_angle=GetPlannedSteeringAngle(trajectory_analyzer.goal_state);
 
-    A(0,2) = -planned_velocity *sin(planned_heading)*Ts;
-    A(1,2) = planned_velocity*cos(planned_heading)*Ts;
+    A(0,2) = -current_velocity *sin(planned_heading)*Ts;
+    A(1,2) = current_velocity*cos(planned_heading)*Ts;
 /*     B(0,0) = Ts*cos(planned_heading);
     B(1,0) = Ts*sin(planned_heading);
     B(2,0) = Ts*tan(planned_steering_angle)/wheel_base;
     B(2,1) = planned_velocity*Ts/(wheel_base*cos(planned_steering_angle)*cos(planned_steering_angle)); */
-    B(2,0) = planned_velocity*Ts/(wheel_base*cos(planned_steering_angle)*cos(planned_steering_angle));
+    B(2,0) = current_velocity*Ts/(wheel_base*cos(planned_steering_angle)*cos(planned_steering_angle));
 
 
 
@@ -244,20 +244,10 @@ Status MPCController::ComputeControlCmd(TrajectoryAnalyzer &trajectory_analyzer,
     ROS_INFO_STREAM("xOpt = "<<xOpt[0]<<"; objVal = "<<QPSolver.getObjVal());
 
     double steering_angle = xOpt[1]+planned_steering_angle;
-    //double steering_angle = xOpt[1];
-    steering_angle /= vehicle_state.max_steer;
     previous_steering_angle = steering_angle;
-    //ROS_INFO_STREAM("steering angle="<<steering_angle);
-    if(steering_angle>1)
-    {
-        steering_angle=1;
-    }
-    else if(steering_angle<-1)
-    {
-        steering_angle = -1;
-    }
+    //double steering_angle = xOpt[1];
+
     control_cmd.steer=steering_angle;
-    ROS_INFO_STREAM("steering angle="<<steering_angle);
     ROS_INFO("Compute lateral command successfully!");
     status.status = "OK";
     return status;

@@ -66,8 +66,8 @@
     <atmosphere type='adiabatic'/>
     <physics name='default_physics' default='0' type='ode'>
       <max_step_size>0.001</max_step_size>
-      <real_time_factor>1</real_time_factor>
-      <real_time_update_rate>1000</real_time_update_rate>
+      <!--real_time_factor>1</real_time_factor-->
+      <!--real_time_update_rate>1000</real_time_update_rate-->
     </physics>
     <scene>
       <ambient>0.4 0.4 0.4 1</ambient>
@@ -3300,6 +3300,8 @@
       </link>
       <pose frame=''>198.126 53.5185 0 0 -0 0</pose>
     </model>
+
+
     <model name='cloverleaf_interchange'>
       <static>1</static>
       <link name='link'>
@@ -3338,6 +3340,7 @@
       </link>
       <pose frame=''>-295.324 348.572 0 0 -0 0</pose>
     </model>
+
     <model name='Speed limit'>
       <static>1</static>
       <link name='link'>

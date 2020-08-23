@@ -1,6 +1,6 @@
 #include<car_demo/Common.h>
 
-Status ControlConf::ReadControlConf(string control_conf_file_name)
+Status ControlConf::ReadControlConf(const string control_conf_file_name)
 {
     ifs.open(control_conf_file_name, ios::in);
     if (!ifs.is_open())

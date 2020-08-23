@@ -1,6 +1,6 @@
 #include<car_demo/Controller/StanleyController.h>
 
-Status StanleyController::Init(ControlConf &control_conf)
+Status StanleyController::Init(const ControlConf &control_conf)
 {
     name = "PurePursuit controller";
     Ts = control_conf.conf_param.Ts;
@@ -17,7 +17,7 @@ void StanleyController::TransformToFrontAxle(double x,double y)
     front_axle_x = x+wheel_base*cos(current_heading);
     front_axle_y= y +wheel_base*sin(current_heading);
 }
-Status StanleyController::ComputeControlCmd(TrajectoryAnalyzer &trajectory_analyzer, VehicleState &vehicle_state,prius_msgs::Control &control_cmd)
+Status StanleyController::ComputeControlCmd(TrajectoryAnalyzer &trajectory_analyzer,const  VehicleState &vehicle_state,prius_msgs::Control &control_cmd)
 {
     ROS_INFO("Use Pure Pursuit");
     double x = vehicle_state.movement_state.pose.position.x;
@@ -28,10 +28,10 @@ Status StanleyController::ComputeControlCmd(TrajectoryAnalyzer &trajectory_analy
     TransformToFrontAxle(x,y);
     double goal_id = trajectory_analyzer.MatchPointByPositionForStanley(front_axle_x,front_axle_y);
     goal_state = trajectory_analyzer.trajectory_info[goal_id];
-    ROS_INFO_STREAM("front_axle_x = "<<front_axle_x);
-    ROS_INFO_STREAM("front_axle_y = "<<front_axle_y);
-    ROS_INFO_STREAM("goal_x = "<<goal_state.x);
-    ROS_INFO_STREAM("goal_y = "<<goal_state.y);
+    // ROS_INFO_STREAM("front_axle_x = "<<front_axle_x);
+    // ROS_INFO_STREAM("front_axle_y = "<<front_axle_y);
+    // ROS_INFO_STREAM("goal_x = "<<goal_state.x);
+    // ROS_INFO_STREAM("goal_y = "<<goal_state.y);
    
     // original method
 /*     double distance;
@@ -74,7 +74,6 @@ Status StanleyController::ComputeControlCmd(TrajectoryAnalyzer &trajectory_analy
     double d_x=goal_state.x+d*cos(goal_state.theta);
     double d_y=goal_state.y+d*sin(goal_state.theta);
     steering_angle = atan2(d_y-front_axle_y,d_x-front_axle_x)-current_heading;
-    
     if(steering_angle>pi)
     {
         steering_angle=steering_angle-2*pi;
@@ -83,20 +82,7 @@ Status StanleyController::ComputeControlCmd(TrajectoryAnalyzer &trajectory_analy
     {
         steering_angle=steering_angle+2*pi;
     }
-    steering_angle = steering_angle/vehicle_state.max_steer;
-
-
-    ROS_INFO_STREAM("steering angle(before clamp)="<<steering_angle);
-    if(steering_angle>1)
-    {
-        steering_angle=1;
-    }
-    else if(steering_angle<-1)
-    {
-        steering_angle = -1;
-    }
-    control_cmd.steer=steering_angle;
-    ROS_INFO_STREAM("steering angle="<<steering_angle);
+    control_cmd.steer = steering_angle;
     ROS_INFO("Compute lateral command successfully!");
     status.status = "OK";
     return status;

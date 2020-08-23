@@ -1,9 +1,12 @@
 #include <car_demo/VehicleState.h>
 
-Status VehicleState::Init(ControlConf &control_conf)
+Status VehicleState::Init(const ControlConf &control_conf)
 {
     Ts=control_conf.conf_param.Ts;
     slope_threshold=control_conf.conf_param.slope_threshold;
+    pitch_deque_length=control_conf.conf_param.pitch_deque_length;
+    filter_method=control_conf.conf_param.filter_method;
+
     G=control_conf.conf_param.G;
     mass=control_conf.conf_param.mass;
     friction_coefficient=control_conf.conf_param.friction_coefficient;
@@ -33,10 +36,20 @@ Status VehicleState::Init(ControlConf &control_conf)
     frwheel_steering_i_gain=control_conf.conf_param.frwheel_steering_i_gain;
     flwheel_steering_d_gain=control_conf.conf_param.flwheel_steering_d_gain;
     frwheel_steering_d_gain=control_conf.conf_param.frwheel_steering_d_gain;
+
+    for(int i=0;i<pitch_deque_length;++i)
+    {
+        pitch_deque.push_back(0);
+    }
+
     status.status = "OK";
     return status;
 }
-
+void VehicleState::ComputeVelocityError(const prius_msgs::My_Trajectory_Point &goal_state)
+{
+    heading_error = goal_state.theta-heading_angle;
+    velocity_error = goal_state.v-current_velocity*cos(heading_error);
+}
 Status VehicleState::GetVehicleStateFromLocalization(const nav_msgs::Odometry &localization)
 {
     movement_state.pose =  localization.pose.pose;
@@ -47,42 +60,61 @@ Status VehicleState::GetVehicleStateFromLocalization(const nav_msgs::Odometry &l
     //ROS_INFO_STREAM("Current velocity(from chassis) is "<<info_from_chassis.longitudinal_data.vel_from_localization);
     ComputeAcc();
     //ROS_INFO_STREAM("Current acceleration(from chassis) is "<<info_from_chassis.longitudinal_data.acceleration);
+    float x = movement_state.pose.orientation.x;
+    float y = movement_state.pose.orientation.y;
+    float z = movement_state.pose.orientation.z;
+    float w = movement_state.pose.orientation.w;
+    ComputeEular(x,y,z,w);
     ComputeHeadingAngle();
     //ROS_INFO_STREAM("Current heading(from chassis) is "<<info_from_chassis.lateral_data.heading_angle);
+
+    ComputeSlope();
     status.status = "OK";
     return status;
 }
+Status VehicleState::GetVehicleStateFromCarsim(const nav_msgs::Odometry &carsim_feedback)
+{
+    movement_state.pose =  carsim_feedback.pose.pose;
+    ros::param::set("vehicle_x", movement_state.pose.position.x);
+    ros::param::set("vehicle_y", movement_state.pose.position.y);
+    movement_state.twist =  carsim_feedback.twist.twist;
+    ComputeVelocity();
+    //ROS_INFO_STREAM("Current velocity(from chassis) is "<<info_from_chassis.longitudinal_data.vel_from_localization);
+    ComputeAcc();
+    //ROS_INFO_STREAM("Current acceleration(from chassis) is "<<info_from_chassis.longitudinal_data.acceleration);
 
+    pose_angle[0]=carsim_feedback.pose.pose.orientation.x*PI/180;
+    pose_angle[1]=carsim_feedback.pose.pose.orientation.y*PI/180;
+    pose_angle[2]=carsim_feedback.pose.pose.orientation.z*PI/180;
+    ComputeHeadingAngle();
+    ComputeSlope();
+    status.status = "OK";
+    return status;
+}
 Status VehicleState::GetVehicleStateFromChassis(const prius_msgs::VehicleInfo &current_state)
 {
     info_from_chassis = current_state;
     status.status = "OK";
     return status;
 }
-void VehicleState::GetAllData(const prius_msgs::My_Trajectory_Point &goal_state, const prius_msgs::My_Trajectory_Point &preview_state,const ControlConf &control_conf)
+void VehicleState::GetAllData(double goal_id,double preview_id,const ControlConf &control_conf)
 {
-/*     vehicle_info.controllers_num=control_conf.conf_param.controller_num;
-    vehicle_info.longitudinal_controller=control_conf.LONGITUDINAL_CONTROLLER;
-    vehicle_info.lateral_controller=control_conf.LATERAL_CONTROLLER;
-    vehicle_info.centralized_controller=control_conf.CENTRALIZED_CONTROLLER; */
     vehicle_info.distance_error = distance_error;
     vehicle_info.velocity_error = velocity_error;
     vehicle_info.heading_error = heading_error;
-    vehicle_info.goal_x=goal_state.x;
-    vehicle_info.goal_y=goal_state.y;
-    vehicle_info.preview_x= preview_state.x;
-    vehicle_info.preview_y=preview_state.y;
+    vehicle_info.goal_id=goal_id;
+    vehicle_info.preview_id=preview_id;
+    vehicle_info.slope =slope;
     vehicle_info.trajectory_point.x=movement_state.pose.position.x;
     vehicle_info.trajectory_point.y=movement_state.pose.position.y;
     vehicle_info.trajectory_point.v=current_velocity;
-    vehicle_info.trajectory_point.kappa=goal_state.kappa;
     vehicle_info.trajectory_point.theta = heading_angle;
     vehicle_info.trajectory_point.relative_time=ros::Time::now().toSec();
     vehicle_info.trajectory_point.a=acceleration;
     vehicle_info.vehicle_info = info_from_chassis;
 }
 
-void VehicleState::ComputeDistanceFromDestination(prius_msgs::My_Trajectory_Point destination)
+void VehicleState::ComputeDistanceFromDestination(const prius_msgs::My_Trajectory_Point destination)
 {
     double x = movement_state.pose.position.x;
     double y = movement_state.pose.position.y;
@@ -116,67 +148,45 @@ void VehicleState::ComputeEular(double x,double y,double z,double w)
 }
 void VehicleState::ComputeHeadingAngle()
 {
-    float x = movement_state.pose.orientation.x;
-    float y = movement_state.pose.orientation.y;
-    float z = movement_state.pose.orientation.z;
-    float w = movement_state.pose.orientation.w;
-    ComputeEular(x,y,z,w);
     heading_angle = pose_angle[1];
     //ROS_INFO_STREAM("Current heading angle(from GPS) is "<<heading_angle);
-    ros::param::set("Lattice_Planner", heading_angle);
 }
 
-void VehicleState::ComputeBrakeDistanceAhead()
+double VehicleState::Filter(const deque<double> pitch_deque,double method)
 {
-    brake_distance_ahead = current_velocity*brake_distance_coefficient;
-/*     ROS_INFO_STREAM("current velocity is "<<current_velocity);
-    ROS_INFO_STREAM("mass is "<<mass);
-    ROS_INFO_STREAM("wheel_radius is "<<wheel_radius);
-    ROS_INFO_STREAM("max_front_brake_torque is "<<max_front_brake_torque);
-    ROS_INFO_STREAM("max_back_brake_torque is "<<max_back_brake_torque); */
+    double slope;
+    switch(int(method))
+    {case 1:
+        slope = MedianFilter(pitch_deque);
+        break;
+    case 2:
+        slope = SlideWindowMeanFilter(pitch_deque);
+        break;
+    }
+    return slope;
 }
-
+double VehicleState::MedianFilter(deque<double> pitch_deque)
+{
+    sort(pitch_deque.begin(),pitch_deque.end());
+    return pitch_deque[int(pitch_deque_length)/2];
+}
+double VehicleState::SlideWindowMeanFilter(deque<double> pitch_deque)
+{
+    double sum;
+    for(int i=0;i<pitch_deque_length;++i)
+    {
+        sum +=pitch_deque[i];
+    }
+    return sum/pitch_deque_length;
+}
+    
 void VehicleState::ComputeSlope()
 {
-/*     float qx = current_state.pose.orientation.x;
-    float qy = current_state.pose.orientation.y;
-    float qz = current_state.pose.orientation.z;
-    float qw = current_state.pose.orientation.w;
-
-    // euler = euler_from_quaternion(qx,qy,qz,qw);
-    // float pitch= euler[2];
-    // 这里随便定一个一个pitch，实际用欧拉角公式求，还没写
-    float pitch = 0.0; 
-    pitch_angle.pop_back();
-    pitch_angle.push_front(pitch);
-    if (pitch>=SLOPE_THRESHOLD)
+    pitch_deque.pop_front();
+    pitch_deque.push_back(pose_angle[2]);
+    slope = -Filter(pitch_deque,filter_method)*180/PI;
+    if(abs(slope)<slope_threshold)
     {
-        count_slope +=1;
+        slope=0;
     }
-    else
-    {
-        count_flat += 1;
-    }
-
-    if(count_slope+count_flat==N)
-    {
-        if(count_slope>N/2)
-        {
-            slope = accumulate(begin(pitch_angle),end(pitch_angle),0.0)/N;
-            previous_slope = slope;
-            count_slope=0;
-            count_flat=0;
-            return slope;
-        }
-        else
-        {
-            count_slope=0;
-            count_flat=0;
-            return 0.0;
-        }
-    }
-    else
-    {
-        return previous_slope;
-    } */
 }

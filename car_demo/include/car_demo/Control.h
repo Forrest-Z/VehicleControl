@@ -12,6 +12,7 @@ using namespace std;
 #include <car_demo/Controller/LQRController.h>
 #include <car_demo/Controller/MPCController.h>
 #include <car_demo/Controller/PurePursuit.h>
+#include <car_demo/SignalDefines.hpp>
 
 #include <algorithm>
 #include <vector>
@@ -40,14 +41,18 @@ class Control
     Status Start();
     void Stop();
     int Spin();
-    Status ReadControlConf(string control_conf_file_name, ControlConf &control_conf);
     void TrajectoryCallback(const prius_msgs::My_Trajectory &trajectory);
     void LocalizationCallback(const nav_msgs::Odometry &localization);
-    void VehicleStateCallback(const prius_msgs::VehicleInfo &current_state);
-    void WriteInDebug(ofstream &ofs, prius_msgs::Augmented_My_Trajectory_Point vehicle_info);
+    void ChassisInfoCallback(const prius_msgs::VehicleInfo &chassis_info);
+    void ChassisStateCallback(const nox_msgs::SignalArray::ConstPtr &chassis_state);
+    void CARSIMCallback(const nav_msgs::Odometry &carsim_feedback);
+    void WriteInDebug(ofstream &ofs, prius_msgs::Augmented_My_Trajectory_Point vehicle_info,TrajectoryAnalyzer &trajectory_analyzer);
 
-
+    
     private:
+    int count =0;
+    int frequency =10;
+    string simulation_platform;
     double init_time = 0.0;
     Status status;
     ControlConf control_conf;
@@ -55,14 +60,18 @@ class Control
     TrajectoryAnalyzer trajectory_analyzer;
     VehicleState vehicle_state;
     prius_msgs::Control control_cmd;
+    
     ofstream ofs;
     string simulation_result="/home/ht/ControlModule/src/car_demo/plot_py/simulation_result.txt";
 
 
     ros::NodeHandle node;
     ros::Publisher command_pub;
+    ros::Publisher carsim_pub;
     ros::Publisher vehicle_info_pub;
     ros::Subscriber trajectory_sub;
     ros::Subscriber localization_sub;
-    ros::Subscriber vehicle_state_sub;
+    ros::Subscriber chassis_state_sub;
+    ros::Subscriber carsim_sub;
+    ros::Subscriber chassis_info_sub;
 };
